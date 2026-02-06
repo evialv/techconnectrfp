@@ -1,0 +1,30 @@
+# Environment files
+.env
+.env.local
+*.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test outputs
+test-results/
+*.html
+
+# Python (if using SDK locally)
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+.venv/

@@ -1,0 +1,130 @@
+name: "RFP Agent Evaluation"
+
+on:
+  workflow_dispatch:  # Manual trigger
+    inputs:
+      agent_type:
+        description: 'Which agent to evaluate'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - summary
+          - risk
+          - compliance
+  push:
+    branches:
+      - main
+    paths:
+      - 'data/**'
+      - '.github/workflows/rfp-evaluation.yml'
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  # Update these with your actual agent IDs from Foundry
+  SUMMARY_AGENT_ID: "RfpSummaryAgent:1"    # Replace with actual ID
+  RISK_AGENT_ID: "RfpRiskAgent:1"          # Replace with actual ID  
+  COMPLIANCE_AGENT_ID: "RfpComplianceAgent:1"  # Replace with actual ID
+
+jobs:
+  evaluate-summary-agent:
+    if: ${{ github.event.inputs.agent_type == 'all' || github.event.inputs.agent_type == 'summary' || github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    name: Evaluate RFP Summary Agent
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Run Summary Agent Evaluation
+        uses: microsoft/ai-agent-evals@v3-beta
+        with:
+          azure-ai-project-endpoint: ${{ vars.AZURE_AI_PROJECT_ENDPOINT }}
+          deployment-name: "gpt-4.1-mini"
+          agent-ids: ${{ env.SUMMARY_AGENT_ID }}
+          data-path: ${{ github.workspace }}/data/rfp-evaluation-dataset.json
+
+  evaluate-risk-agent:
+    if: ${{ github.event.inputs.agent_type == 'all' || github.event.inputs.agent_type == 'risk' || github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    name: Evaluate RFP Risk Agent
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Run Risk Agent Evaluation
+        uses: microsoft/ai-agent-evals@v3-beta
+        with:
+          azure-ai-project-endpoint: ${{ vars.AZURE_AI_PROJECT_ENDPOINT }}
+          deployment-name: "gpt-4.1-mini"
+          agent-ids: ${{ env.RISK_AGENT_ID }}
+          data-path: ${{ github.workspace }}/data/rfp-evaluation-dataset.json
+
+  evaluate-compliance-agent:
+    if: ${{ github.event.inputs.agent_type == 'all' || github.event.inputs.agent_type == 'compliance' || github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    name: Evaluate RFP Compliance Agent
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Run Compliance Agent Evaluation
+        uses: microsoft/ai-agent-evals@v3-beta
+        with:
+          azure-ai-project-endpoint: ${{ vars.AZURE_AI_PROJECT_ENDPOINT }}
+          deployment-name: "gpt-4.1-mini"
+          agent-ids: ${{ env.COMPLIANCE_AGENT_ID }}
+          data-path: ${{ github.workspace }}/data/rfp-evaluation-dataset.json
+
+  compare-all-agents:
+    if: ${{ github.event.inputs.agent_type == 'all' || github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    name: Compare All RFP Agents
+    needs: [evaluate-summary-agent, evaluate-risk-agent, evaluate-compliance-agent]
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Compare All Agents
+        uses: microsoft/ai-agent-evals@v3-beta
+        with:
+          azure-ai-project-endpoint: ${{ vars.AZURE_AI_PROJECT_ENDPOINT }}
+          deployment-name: "gpt-4.1-mini"
+          agent-ids: "${{ env.SUMMARY_AGENT_ID }},${{ env.RISK_AGENT_ID }},${{ env.COMPLIANCE_AGENT_ID }}"
+          baseline-agent-id: ${{ env.SUMMARY_AGENT_ID }}
+          data-path: ${{ github.workspace }}/data/rfp-evaluation-dataset.json
