@@ -25,10 +25,11 @@ permissions:
   contents: read
 
 env:
-  # Update these with your actual agent IDs from Foundry
-  SUMMARY_AGENT_ID: "RfpSummaryAgent:1"    # Replace with actual ID
-  RISK_AGENT_ID: "RfpRiskAgent:1"          # Replace with actual ID  
-  COMPLIANCE_AGENT_ID: "RfpComplianceAgent:1"  # Replace with actual ID
+  # Agent IDs from Foundry (format: agent-name:version)
+  ORCHESTRATOR_AGENT_ID: "RfpOrchestratorAgent:1"
+  SUMMARY_AGENT_ID: "RfpSummaryAgent:1"
+  RISK_AGENT_ID: "RfpRiskAgent:1"
+  COMPLIANCE_AGENT_ID: "RfpComplianceAgent:1"
 
 jobs:
   evaluate-summary-agent:
