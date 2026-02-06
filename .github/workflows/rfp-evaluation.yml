@@ -13,6 +13,11 @@ on:
           - summary
           - risk
           - compliance
+      use_latest_version:
+        description: 'Fetch latest agent versions from Foundry'
+        required: true
+        default: true
+        type: boolean
   push:
     branches:
       - main
@@ -25,14 +30,108 @@ permissions:
   contents: read
 
 env:
-  # Agent IDs from Foundry (format: agent-name:version)
-  ORCHESTRATOR_AGENT_ID: "RfpOrchestratorAgent:1"
-  SUMMARY_AGENT_ID: "RfpSummaryAgent:1"
-  RISK_AGENT_ID: "RfpRiskAgent:1"
-  COMPLIANCE_AGENT_ID: "RfpComplianceAgent:1"
+  # Default agent names (version fetched dynamically if use_latest_version=true)
+  SUMMARY_AGENT_NAME: "RfpSummaryAgent"
+  RISK_AGENT_NAME: "RfpRiskAgent"
+  COMPLIANCE_AGENT_NAME: "RfpComplianceAgent"
+  ORCHESTRATOR_AGENT_NAME: "RfpOrchestratorAgent"
 
 jobs:
+  # First job: Fetch latest agent versions from Foundry
+  fetch-agent-versions:
+    runs-on: ubuntu-latest
+    name: Fetch Latest Agent Versions
+    outputs:
+      summary_agent_id: ${{ steps.get-versions.outputs.summary_agent_id }}
+      risk_agent_id: ${{ steps.get-versions.outputs.risk_agent_id }}
+      compliance_agent_id: ${{ steps.get-versions.outputs.compliance_agent_id }}
+      orchestrator_agent_id: ${{ steps.get-versions.outputs.orchestrator_agent_id }}
+    
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Azure SDK
+        run: pip install azure-ai-projects azure-identity
+
+      - name: Get Latest Agent Versions
+        id: get-versions
+        env:
+          AZURE_AI_PROJECT_ENDPOINT: ${{ vars.AZURE_AI_PROJECT_ENDPOINT }}
+          USE_LATEST: ${{ github.event.inputs.use_latest_version || 'true' }}
+        run: |
+          python << 'EOF'
+          import os
+          import json
+          from azure.identity import DefaultAzureCredential
+          from azure.ai.projects import AIProjectClient
+          
+          endpoint = os.environ["AZURE_AI_PROJECT_ENDPOINT"]
+          use_latest = os.environ.get("USE_LATEST", "true").lower() == "true"
+          
+          # Agent names to look up
+          agent_names = {
+              "summary": "RfpSummaryAgent",
+              "risk": "RfpRiskAgent", 
+              "compliance": "RfpComplianceAgent",
+              "orchestrator": "RfpOrchestratorAgent"
+          }
+          
+          if use_latest:
+              try:
+                  credential = DefaultAzureCredential()
+                  client = AIProjectClient(endpoint=endpoint, credential=credential)
+                  
+                  # Get all agents and find latest versions
+                  agents_list = list(client.agents.list())
+                  
+                  agent_versions = {}
+                  for name_key, agent_name in agent_names.items():
+                      # Find all versions of this agent
+                      matching = [a for a in agents_list if a.name == agent_name]
+                      if matching:
+                          # Sort by version/created date and get latest
+                          latest = max(matching, key=lambda x: getattr(x, 'created_at', '') or '')
+                          version = getattr(latest, 'version', '1') or '1'
+                          agent_versions[name_key] = f"{agent_name}:{version}"
+                          print(f"Found {agent_name} version {version}")
+                      else:
+                          # Fallback to version 1 if not found
+                          agent_versions[name_key] = f"{agent_name}:1"
+                          print(f"Agent {agent_name} not found, using version 1")
+                          
+              except Exception as e:
+                  print(f"Error fetching agents: {e}")
+                  print("Falling back to version 1 for all agents")
+                  agent_versions = {k: f"{v}:1" for k, v in agent_names.items()}
+          else:
+              # Use version 1 for all
+              agent_versions = {k: f"{v}:1" for k, v in agent_names.items()}
+          
+          # Write outputs
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"summary_agent_id={agent_versions['summary']}\n")
+              f.write(f"risk_agent_id={agent_versions['risk']}\n")
+              f.write(f"compliance_agent_id={agent_versions['compliance']}\n")
+              f.write(f"orchestrator_agent_id={agent_versions['orchestrator']}\n")
+          
+          print("\n=== Agent Versions ===")
+          for k, v in agent_versions.items():
+              print(f"  {k}: {v}")
+          EOF
+
+  # Evaluate Summary Agent
   evaluate-summary-agent:
+    needs: fetch-agent-versions
     if: ${{ github.event.inputs.agent_type == 'all' || github.event.inputs.agent_type == 'summary' || github.event_name == 'push' }}
     runs-on: ubuntu-latest
     name: Evaluate RFP Summary Agent
@@ -53,10 +152,12 @@ jobs:
         with:
           azure-ai-project-endpoint: ${{ vars.AZURE_AI_PROJECT_ENDPOINT }}
           deployment-name: "gpt-4.1-mini"
-          agent-ids: ${{ env.SUMMARY_AGENT_ID }}
+          agent-ids: ${{ needs.fetch-agent-versions.outputs.summary_agent_id }}
           data-path: ${{ github.workspace }}/data/rfp-evaluation-dataset.json
 
+  # Evaluate Risk Agent
   evaluate-risk-agent:
+    needs: fetch-agent-versions
     if: ${{ github.event.inputs.agent_type == 'all' || github.event.inputs.agent_type == 'risk' || github.event_name == 'push' }}
     runs-on: ubuntu-latest
     name: Evaluate RFP Risk Agent
@@ -77,10 +178,12 @@ jobs:
         with:
           azure-ai-project-endpoint: ${{ vars.AZURE_AI_PROJECT_ENDPOINT }}
           deployment-name: "gpt-4.1-mini"
-          agent-ids: ${{ env.RISK_AGENT_ID }}
+          agent-ids: ${{ needs.fetch-agent-versions.outputs.risk_agent_id }}
           data-path: ${{ github.workspace }}/data/rfp-evaluation-dataset.json
 
+  # Evaluate Compliance Agent
   evaluate-compliance-agent:
+    needs: fetch-agent-versions
     if: ${{ github.event.inputs.agent_type == 'all' || github.event.inputs.agent_type == 'compliance' || github.event_name == 'push' }}
     runs-on: ubuntu-latest
     name: Evaluate RFP Compliance Agent
@@ -101,14 +204,15 @@ jobs:
         with:
           azure-ai-project-endpoint: ${{ vars.AZURE_AI_PROJECT_ENDPOINT }}
           deployment-name: "gpt-4.1-mini"
-          agent-ids: ${{ env.COMPLIANCE_AGENT_ID }}
+          agent-ids: ${{ needs.fetch-agent-versions.outputs.compliance_agent_id }}
           data-path: ${{ github.workspace }}/data/rfp-evaluation-dataset.json
 
+  # Compare All Agents
   compare-all-agents:
-    if: ${{ github.event.inputs.agent_type == 'all' || github.event_name == 'push' }}
+    needs: [fetch-agent-versions, evaluate-summary-agent, evaluate-risk-agent, evaluate-compliance-agent]
+    if: ${{ always() && (github.event.inputs.agent_type == 'all' || github.event_name == 'push') }}
     runs-on: ubuntu-latest
     name: Compare All RFP Agents
-    needs: [evaluate-summary-agent, evaluate-risk-agent, evaluate-compliance-agent]
     
     steps:
       - name: Checkout repository
@@ -126,6 +230,6 @@ jobs:
         with:
           azure-ai-project-endpoint: ${{ vars.AZURE_AI_PROJECT_ENDPOINT }}
           deployment-name: "gpt-4.1-mini"
-          agent-ids: "${{ env.SUMMARY_AGENT_ID }},${{ env.RISK_AGENT_ID }},${{ env.COMPLIANCE_AGENT_ID }}"
-          baseline-agent-id: ${{ env.SUMMARY_AGENT_ID }}
+          agent-ids: "${{ needs.fetch-agent-versions.outputs.summary_agent_id }},${{ needs.fetch-agent-versions.outputs.risk_agent_id }},${{ needs.fetch-agent-versions.outputs.compliance_agent_id }}"
+          baseline-agent-id: ${{ needs.fetch-agent-versions.outputs.summary_agent_id }}
           data-path: ${{ github.workspace }}/data/rfp-evaluation-dataset.json
