@@ -1,151 +1,99 @@
 # TechConnect RFP Agent Evaluation
 
-Automated evaluation pipeline for RFP analysis agents using [Azure AI Agent Evaluation GitHub Action](https://github.com/marketplace/actions/azure-ai-agent-evaluation).
-
-## Overview
-
-This repository evaluates three RFP agents:
-- **RfpSummaryAgent** - Summarizes RFP documents
-- **RfpRiskAgent** - Identifies risks in proposals
-- **RfpComplianceAgent** - Checks compliance requirements
-
-## Prerequisites
-
-1. **Azure AI Foundry Project** with deployed agents
-2. **Azure AD App Registration** with federated credentials for GitHub Actions
-3. **GitHub repository** with Actions enabled
+Automated evaluation pipeline for RFP analysis agents using the [Azure AI Agent Evaluation GitHub Action](https://github.com/marketplace/actions/azure-ai-agent-evaluation).
 
 ---
 
-## Setup Instructions
+## 🎯 What This Does
 
-### Step 1: Create Agents in Azure AI Foundry
-
-1. Go to [Azure AI Foundry](https://ai.azure.com)
-2. Open your project
-3. Navigate to **Build** → **Agents**
-4. Create three agents:
-
-#### RfpSummaryAgent
-```
-Name: RfpSummaryAgent
-Model: gpt-4.1-mini
-Instructions: You are the Summary Agent. Your role is to read and synthesize RFP or proposal documents into clear, structured executive summaries. Focus on key clauses, deliverables, evaluation criteria, pricing terms, timelines, and obligations. Organize your output into sections such as Overview, Key Clauses, Deliverables, Terms, and Notable Conditions.
-Tools: Azure AI Search (connect to your RFP index)
-```
-
-#### RfpRiskAgent
-```
-Name: RfpRiskAgent
-Model: gpt-4.1-mini
-Instructions: You are the Risk Agent. Your task is to identify and assess potential risks across the document, including legal, financial, operational, technical, and scheduling risks. For each risk, provide a short description, the affected clause or section, a risk category, and a qualitative rating (Low, Medium, High).
-Tools: Azure AI Search (connect to your RFP index)
-```
-
-#### RfpComplianceAgent
-```
-Name: RfpComplianceAgent
-Model: gpt-4.1-mini
-Instructions: You are the Compliance Agent. Your goal is to evaluate whether the RFP or proposal aligns with internal policies, regulatory standards, and ethical or contractual requirements. Identify any non-compliant clauses, ambiguous terms, or potential policy conflicts.
-Tools: Azure AI Search (connect to your RFP index)
-```
-
-5. Note the **Agent IDs** (format: `asst_xxxxx` or similar)
+Evaluates the quality and safety of our RFP analysis agents by:
+1. Running **20 test queries** against each agent
+2. Measuring **quality metrics** (groundedness, relevance, coherence, fluency)
+3. Checking **safety compliance** (violence, hate, sexual, self-harm)
+4. Generating **comparison reports** across agents
 
 ---
 
-### Step 2: Set Up Azure AD Federated Credentials
+## 🤖 Agents Evaluated
 
-1. Go to **Azure Portal** → **Microsoft Entra ID** → **App Registrations**
-2. Create new registration or use existing
-3. Go to **Certificates & Secrets** → **Federated credentials** → **Add credential**
-4. Configure:
-   - **Scenario**: GitHub Actions deploying Azure resources
-   - **Organization**: `evialv`
-   - **Repository**: `techconnectrfp`
-   - **Entity type**: Branch
-   - **Branch**: `main`
-   - **Name**: `github-actions-federated`
-5. Save and note:
-   - **Application (client) ID**
-   - **Directory (tenant) ID**
-   - Go to Subscription to get **Subscription ID**
+| Agent | Purpose |
+|-------|---------|
+| `RfpOrchestratorAgent` | Plans, delegates, synthesizes final output |
+| `RfpSummaryAgent` | Summarizes RFP documents into structured overviews |
+| `RfpRiskAgent` | Identifies legal, financial, operational risks |
+| `RfpComplianceAgent` | Checks regulatory and policy compliance |
 
 ---
 
-### Step 3: Grant Permissions
+## 📊 Evaluation Metrics
 
-Your App Registration needs these roles on the AI Foundry project:
+### Quality Metrics (Score: 1-5, Target: > 4.0)
 
-1. Go to your **AI Foundry resource** in Azure Portal
-2. **Access control (IAM)** → **Add role assignment**
-3. Add:
-   - `Cognitive Services User`
-   - `Azure AI Developer`
+| Metric | What It Measures |
+|--------|------------------|
+| **Groundedness** | Is the response supported by the provided context? |
+| **Relevance** | Does the response address the user's query? |
+| **Coherence** | Is the response logically structured? |
+| **Fluency** | Is the language grammatically correct? |
+| **Task Adherence** | Did the agent follow its instructions? |
 
----
+### Safety Metrics (Score: 0-7, Target: < 1)
 
-### Step 4: Configure GitHub Repository Variables
-
-1. Go to your repo: https://github.com/evialv/techconnectrfp
-2. **Settings** → **Secrets and variables** → **Actions** → **Variables** tab
-3. Add these **Repository Variables**:
-
-| Name | Value |
-|------|-------|
-| `AZURE_CLIENT_ID` | Your App Registration Client ID |
-| `AZURE_TENANT_ID` | Your Azure AD Tenant ID |
-| `AZURE_SUBSCRIPTION_ID` | Your Azure Subscription ID |
-| `AZURE_AI_PROJECT_ENDPOINT` | `https://<your-hub>.services.ai.azure.com/api/projects/<project-name>` |
+| Metric | What It Detects |
+|--------|-----------------|
+| **Violence** | Violent content |
+| **Hate/Unfairness** | Discriminatory content |
+| **Sexual** | Inappropriate sexual content |
+| **Self-harm** | Self-harm related content |
 
 ---
 
-### Step 5: Update Workflow with Agent IDs
+## 🚀 Running Evaluations
 
-Edit `.github/workflows/rfp-evaluation.yml` and replace placeholder agent IDs:
+### Manual Run
+1. Go to **Actions** → **RFP Agent Evaluation**
+2. Click **Run workflow**
+3. Select agent type: `all`, `summary`, `risk`, or `compliance`
+4. View results in the **run summary**
 
-```yaml
-agent-ids: "your-actual-summary-agent-id:1"
+### Automatic Runs
+Triggered on push to `main` when changes are made to:
+- `data/**` (evaluation dataset)
+- `.github/workflows/rfp-evaluation.yml`
+
+---
+
+## 📁 Repository Structure
+
+```
+techconnectrfp/
+├── .github/workflows/
+│   └── rfp-evaluation.yml      # GitHub Action workflow
+├── data/
+│   └── rfp-evaluation-dataset.json  # 20 test cases
+├── README.md                   # This file
+└── .gitignore
 ```
 
-Get agent IDs from Foundry portal → Agents → Select agent → Copy ID
-
 ---
 
-### Step 6: Run Evaluation
+## 📝 Test Dataset
 
-**Option 1: Manual trigger**
-1. Go to **Actions** tab
-2. Select **RFP Agent Evaluation**
-3. Click **Run workflow**
+Located in `data/rfp-evaluation-dataset.json` with 20 test cases covering:
 
-**Option 2: Automatic on push**
-- Push changes to `main` branch
-- Workflow runs automatically
+- Document summarization
+- Payment terms analysis  
+- Risk identification
+- GDPR compliance
+- SLA review
+- Security certifications
+- Liability caps
+- Termination rights
+- Data handling
+- Dispute resolution
+- And more...
 
----
-
-## Evaluation Metrics
-
-| Metric | Description | Good Score |
-|--------|-------------|------------|
-| **Groundedness** | Response supported by context | > 4.0 |
-| **Relevance** | Response addresses query | > 4.0 |
-| **Coherence** | Logically structured | > 4.0 |
-| **Fluency** | Grammatically correct | > 4.0 |
-| **Task Adherence** | Follows instructions | > 4.0 |
-| **Violence** | Safety check | < 1 |
-| **Hate/Unfairness** | Safety check | < 1 |
-| **Sexual** | Safety check | < 1 |
-| **Self-harm** | Safety check | < 1 |
-
----
-
-## Dataset
-
-Test cases are in `data/rfp-evaluation-dataset.json`. 
-
-To add more test cases:
+### Adding Test Cases
 
 ```json
 {
@@ -157,43 +105,54 @@ To add more test cases:
 
 ---
 
-## Results
+## ⚙️ Configuration
 
-Evaluation results appear in the GitHub Actions run summary with:
-- Per-metric scores with confidence intervals
-- Safety evaluation results
-- Statistical comparison (when comparing multiple agents)
+### GitHub Variables Required
 
----
+| Variable | Description |
+|----------|-------------|
+| `AZURE_CLIENT_ID` | App Registration Client ID |
+| `AZURE_TENANT_ID` | Azure AD Tenant ID |
+| `AZURE_SUBSCRIPTION_ID` | Azure Subscription ID |
+| `AZURE_AI_PROJECT_ENDPOINT` | Foundry Project Endpoint |
 
-## Files Structure
+### Agent Configuration
 
+Edit `.github/workflows/rfp-evaluation.yml`:
+
+```yaml
+env:
+  ORCHESTRATOR_AGENT_ID: "RfpOrchestratorAgent:1"
+  SUMMARY_AGENT_ID: "RfpSummaryAgent:1"
+  RISK_AGENT_ID: "RfpRiskAgent:1"
+  COMPLIANCE_AGENT_ID: "RfpComplianceAgent:1"
 ```
-techconnectrfp/
-├── .github/
-│   └── workflows/
-│       └── rfp-evaluation.yml    # GitHub Action workflow
-├── data/
-│   └── rfp-evaluation-dataset.json  # Test cases
-├── README.md                     # This file
-└── .gitignore
-```
 
 ---
 
-## Troubleshooting
+## 📈 Interpreting Results
 
-| Issue | Solution |
-|-------|----------|
-| "Agent not found" | Verify agent ID format and version |
-| "Authentication failed" | Check federated credentials match repo/branch |
-| "Endpoint error" | Verify AZURE_AI_PROJECT_ENDPOINT format |
-| Low scores | Add more context to test cases |
+Results appear in the **GitHub Actions run summary**:
+
+| Score | Interpretation |
+|-------|----------------|
+| **4.5 - 5.0** | Excellent - production ready |
+| **4.0 - 4.4** | Good - minor improvements needed |
+| **3.0 - 3.9** | Fair - review agent instructions |
+| **< 3.0** | Poor - significant issues to address |
+
+### Common Issues & Fixes
+
+| Low Score | Likely Cause | Fix |
+|-----------|--------------|-----|
+| Groundedness | Agent hallucinating | Add more context to search index |
+| Relevance | Off-topic responses | Refine agent instructions |
+| Task Adherence | Ignoring instructions | Simplify/clarify agent prompts |
 
 ---
 
-## Resources
+## 🔗 Related Resources
 
 - [Azure AI Agent Evaluation Action](https://github.com/marketplace/actions/azure-ai-agent-evaluation)
-- [Azure AI Foundry Documentation](https://learn.microsoft.com/en-us/azure/ai-foundry/)
+- [Foundry Agent Documentation](https://learn.microsoft.com/en-us/azure/ai-foundry/agents/)
 - [Evaluation Metrics Reference](https://learn.microsoft.com/en-us/azure/ai-foundry/concepts/evaluation-evaluators/)
