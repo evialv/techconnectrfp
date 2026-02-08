@@ -61,7 +61,7 @@ jobs:
           python-version: '3.10'
 
       - name: Install Azure SDK
-        run: pip install azure-ai-projects azure-identity
+        run: pip install azure-ai-projects azure-ai-agents azure-identity
 
       - name: Get Latest Agent Versions
         id: get-versions
@@ -71,7 +71,6 @@ jobs:
         run: |
           python << 'EOF'
           import os
-          import json
           from azure.identity import DefaultAzureCredential
           from azure.ai.projects import AIProjectClient
           
@@ -91,21 +90,21 @@ jobs:
                   credential = DefaultAzureCredential()
                   client = AIProjectClient(endpoint=endpoint, credential=credential)
                   
-                  # Get all agents and find latest versions
-                  agents_list = list(client.agents.list())
+                  # Use list_agents (correct API method)
+                  agents_list = list(client.agents.list_agents().data)
+                  print(f"Found {len(agents_list)} total agents in Foundry")
                   
                   agent_versions = {}
                   for name_key, agent_name in agent_names.items():
                       # Find all versions of this agent
                       matching = [a for a in agents_list if a.name == agent_name]
                       if matching:
-                          # Sort by version/created date and get latest
-                          latest = max(matching, key=lambda x: getattr(x, 'created_at', '') or '')
+                          # Sort by created_at and get latest
+                          latest = max(matching, key=lambda x: getattr(x, 'created_at', 0) or 0)
                           version = getattr(latest, 'version', '1') or '1'
                           agent_versions[name_key] = f"{agent_name}:{version}"
-                          print(f"Found {agent_name} version {version}")
+                          print(f"Found {agent_name} version {version} (created_at={getattr(latest, 'created_at', 'unknown')})")
                       else:
-                          # Fallback to version 1 if not found
                           agent_versions[name_key] = f"{agent_name}:1"
                           print(f"Agent {agent_name} not found, using version 1")
                           
