@@ -91,7 +91,7 @@ jobs:
                   client = AIProjectClient(endpoint=endpoint, credential=credential)
                   
                   # Use list_agents (correct API method)
-                  agents_list = list(client.agents.list_agents().data)
+                  agents_list = list(client.agents.list_agents())
                   print(f"Found {len(agents_list)} total agents in Foundry")
                   
                   agent_versions = {}
