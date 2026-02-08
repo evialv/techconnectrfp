@@ -70,12 +70,18 @@ jobs:
           USE_LATEST: ${{ github.event.inputs.use_latest_version || 'true' }}
         run: |
           python << 'EOF'
-          import os
+          import os, sys
           from azure.identity import DefaultAzureCredential
           from azure.ai.projects import AIProjectClient
           
           endpoint = os.environ["AZURE_AI_PROJECT_ENDPOINT"]
           use_latest = os.environ.get("USE_LATEST", "true").lower() == "true"
+          
+          # Print SDK versions for debugging
+          import azure.ai.projects, azure.ai.agents
+          print(f"azure-ai-projects version: {azure.ai.projects.__version__}")
+          print(f"azure-ai-agents version: {azure.ai.agents.__version__}")
+          print(f"Endpoint: {endpoint}")
           
           # Agent names to look up
           agent_names = {
@@ -85,55 +91,72 @@ jobs:
               "orchestrator": "RfpOrchestratorAgent"
           }
           
-          def get_latest_version(client, agent_name, max_version=20):
-              """Use get_version() directly - same API the action uses internally.
-              Try versions from high to low, return the highest that exists."""
-              latest_found = None
-              for v in range(1, max_version + 1):
-                  try:
-                      agent = client.agents.get_version(agent_name=agent_name, agent_version=str(v))
-                      latest_found = str(v)
-                      print(f"  Found {agent_name} version {v} (name={agent.name})")
-                  except Exception:
-                      # No more versions after this
-                      break
-              return latest_found
-          
           if use_latest:
               try:
                   credential = DefaultAzureCredential()
                   client = AIProjectClient(endpoint=endpoint, credential=credential)
                   
+                  # Debug: check what methods are available on client.agents
+                  agent_ops = [m for m in dir(client.agents) if not m.startswith('_')]
+                  print(f"\nAvailable agent operations: {agent_ops}")
+                  
+                  # Strategy 1: Try get_version (used by v3-beta action)
+                  print("\n--- Strategy 1: get_version() ---")
                   agent_versions = {}
                   for name_key, agent_name in agent_names.items():
-                      print(f"\nLooking up versions for {agent_name}...")
-                      version = get_latest_version(client, agent_name)
-                      if version:
-                          agent_versions[name_key] = f"{agent_name}:{version}"
-                          print(f"  => Using latest: {agent_name}:{version}")
-                      else:
+                      print(f"\nLooking up: {agent_name}")
+                      found = False
+                      for v in range(1, 15):
+                          try:
+                              agent = client.agents.get_version(agent_name=agent_name, agent_version=str(v))
+                              agent_versions[name_key] = f"{agent_name}:{v}"
+                              print(f"  v{v}: OK (id={agent.id}, name={agent.name})")
+                              found = True
+                          except Exception as e:
+                              print(f"  v{v}: FAILED - {type(e).__name__}: {e}")
+                              break
+                      if not found:
                           agent_versions[name_key] = f"{agent_name}:1"
-                          print(f"  => No versions found, defaulting to {agent_name}:1")
+                          print(f"  => Defaulting to {agent_name}:1")
+                  
+                  # Strategy 2: If all failed, try list_agents for more debug info
+                  if all(v.endswith(":1") for v in agent_versions.values()):
+                      print("\n--- Strategy 2: list_agents() debug ---")
+                      try:
+                          agents_iter = client.agents.list_agents()
+                          count = 0
+                          for a in agents_iter:
+                              count += 1
+                              print(f"  Agent: name={a.name}, id={a.id}, version={getattr(a, 'version', 'N/A')}")
+                              if count >= 30:
+                                  break
+                          print(f"  Total listed: {count}")
+                      except Exception as e2:
+                          print(f"  list_agents failed: {type(e2).__name__}: {e2}")
                           
               except Exception as e:
-                  print(f"Error fetching agents: {e}")
+                  print(f"Error: {type(e).__name__}: {e}")
                   import traceback
                   traceback.print_exc()
-                  print("Falling back to version 1 for all agents")
                   agent_versions = {k: f"{v}:1" for k, v in agent_names.items()}
           else:
-              # Use version 1 for all
               agent_versions = {k: f"{v}:1" for k, v in agent_names.items()}
+          
+          # Pick the highest version found for each agent
+          final_versions = {}
+          for name_key, agent_id in agent_versions.items():
+              name, ver = agent_id.rsplit(":", 1)
+              final_versions[name_key] = agent_id
           
           # Write outputs
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-              f.write(f"summary_agent_id={agent_versions['summary']}\n")
-              f.write(f"risk_agent_id={agent_versions['risk']}\n")
-              f.write(f"compliance_agent_id={agent_versions['compliance']}\n")
-              f.write(f"orchestrator_agent_id={agent_versions['orchestrator']}\n")
+              f.write(f"summary_agent_id={final_versions['summary']}\n")
+              f.write(f"risk_agent_id={final_versions['risk']}\n")
+              f.write(f"compliance_agent_id={final_versions['compliance']}\n")
+              f.write(f"orchestrator_agent_id={final_versions['orchestrator']}\n")
           
-          print("\n=== Agent Versions ===")
-          for k, v in agent_versions.items():
+          print("\n=== Final Agent Versions ===")
+          for k, v in final_versions.items():
               print(f"  {k}: {v}")
           EOF
 
