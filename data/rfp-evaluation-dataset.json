@@ -1,5 +1,5 @@
 {
-  "name": "techconnect-rfp-evaluation",
+  "name": "RFP All Agents Comparison",
   "evaluators": [
     "builtin.groundedness",
     "builtin.relevance",

@@ -153,7 +153,7 @@ jobs:
           azure-ai-project-endpoint: ${{ vars.AZURE_AI_PROJECT_ENDPOINT }}
           deployment-name: "gpt-4.1-mini"
           agent-ids: ${{ needs.fetch-agent-versions.outputs.summary_agent_id }}
-          data-path: ${{ github.workspace }}/data/rfp-evaluation-dataset.json
+          data-path: ${{ github.workspace }}/data/rfp-summary-evaluation.json
 
   # Evaluate Risk Agent
   evaluate-risk-agent:
@@ -179,7 +179,7 @@ jobs:
           azure-ai-project-endpoint: ${{ vars.AZURE_AI_PROJECT_ENDPOINT }}
           deployment-name: "gpt-4.1-mini"
           agent-ids: ${{ needs.fetch-agent-versions.outputs.risk_agent_id }}
-          data-path: ${{ github.workspace }}/data/rfp-evaluation-dataset.json
+          data-path: ${{ github.workspace }}/data/rfp-risk-evaluation.json
 
   # Evaluate Compliance Agent
   evaluate-compliance-agent:
@@ -205,7 +205,7 @@ jobs:
           azure-ai-project-endpoint: ${{ vars.AZURE_AI_PROJECT_ENDPOINT }}
           deployment-name: "gpt-4.1-mini"
           agent-ids: ${{ needs.fetch-agent-versions.outputs.compliance_agent_id }}
-          data-path: ${{ github.workspace }}/data/rfp-evaluation-dataset.json
+          data-path: ${{ github.workspace }}/data/rfp-compliance-evaluation.json
 
   # Compare All Agents
   compare-all-agents:
