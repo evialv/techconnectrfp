@@ -78,9 +78,13 @@ jobs:
           use_latest = os.environ.get("USE_LATEST", "true").lower() == "true"
           
           # Print SDK versions for debugging
-          import azure.ai.projects, azure.ai.agents
+          import azure.ai.projects
           print(f"azure-ai-projects version: {azure.ai.projects.__version__}")
-          print(f"azure-ai-agents version: {azure.ai.agents.__version__}")
+          try:
+              import azure.ai.agents
+              print(f"azure-ai-agents version: {azure.ai.agents.__version__}")
+          except ImportError:
+              print("azure-ai-agents: not installed (bundled in projects SDK)")
           print(f"Endpoint: {endpoint}")
           
           # Agent names to look up
